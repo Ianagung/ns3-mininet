@@ -199,8 +199,10 @@ class iplb (object):
     Pick a server for a (hopefully) new connection,
     round robin based """
     global selected_server
-    #print selected_server, len(self.live_servers) a=self.live_servers.keys()
-    if selected_server==len(self.live_servers): selected_server=0
+    #print selected_server, len(self.live_servers)
+    a=self.live_servers.keys()
+    if selected_server==len(self.live_servers):
+      selected_server=0
     b=a[selected_server]
     selected_server+=1
     return b
