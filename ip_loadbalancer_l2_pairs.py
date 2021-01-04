@@ -214,7 +214,38 @@ class iplb (object):
     table[(event.connection,packet.src)] = event.port
   
     dst_port = table.get((event.connection,packet.dst))
+    if dst_port is None:
+      # We don't know where the destination is yet.  So, we'll just
+      # send the packet out all ports (except the one it came in on!)
+      # and hope the destination is out there somewhere. :)
+      msg = of.ofp_packet_out(data = event.ofp)
+      msg.actions.append(of.ofp_action_output(port = all_ports))
+      #event.connection.send(msg)
+      self.con.send(msg)
       
+    #else:
+    elif dst_port != self.service_ip :
+      # Since we know the switch ports for both the source and dest
+      # MACs, we can install rules for both directions.
+      msg = of.ofp_flow_mod()
+      msg.match.dl_dst = packet.src
+      msg.match.dl_src = packet.dst
+      msg.actions.append(of.ofp_action_output(port = event.port))
+      #event.connection.send(msg)
+      self.con.send(msg)
+      
+      # This is the packet that just came in -- we want to
+      # install the rule and also resend the packet.
+      msg = of.ofp_flow_mod()
+      msg.data = event.ofp # Forward the incoming packet
+      msg.match.dl_src = packet.src
+      msg.match.dl_dst = packet.dst
+      msg.actions.append(of.ofp_action_output(port = dst_port))
+      #event.connection.send(msg)
+      self.con.send(msg)
+  
+      self.log.info("Installing %s <-> %s" % (packet.src, packet.dst))
+
     def drop ():
       if event.ofp.buffer_id is not None:
         # Kill the buffer
@@ -320,37 +351,7 @@ class iplb (object):
                             actions=actions,
                             match=match)
       self.con.send(msg)
-    if dst_port is None:
-      # We don't know where the destination is yet.  So, we'll just
-      # send the packet out all ports (except the one it came in on!)
-      # and hope the destination is out there somewhere. :)
-      msg = of.ofp_packet_out(data = event.ofp)
-      msg.actions.append(of.ofp_action_output(port = all_ports))
-      #event.connection.send(msg)
-      self.con.send(msg)
-      
-    else:
-      # Since we know the switch ports for both the source and dest
-      # MACs, we can install rules for both directions.
-      msg = of.ofp_flow_mod()
-      msg.match.dl_dst = packet.src
-      msg.match.dl_src = packet.dst
-      msg.actions.append(of.ofp_action_output(port = event.port))
-      #event.connection.send(msg)
-      self.con.send(msg)
-      
-      # This is the packet that just came in -- we want to
-      # install the rule and also resend the packet.
-      msg = of.ofp_flow_mod()
-      msg.data = event.ofp # Forward the incoming packet
-      msg.match.dl_src = packet.src
-      msg.match.dl_dst = packet.dst
-      msg.actions.append(of.ofp_action_output(port = dst_port))
-      #event.connection.send(msg)
-      self.con.send(msg)
-  
-      self.log.info("Installing %s <-> %s" % (packet.src, packet.dst))
-
+    
 
 # Remember which DPID we're operating on (first one to connect)
 _dpid = None
